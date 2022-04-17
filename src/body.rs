@@ -1,4 +1,4 @@
-use std::{sync::Arc, task::Poll};
+use std::{convert::Infallible, sync::Arc, task::Poll};
 
 use futures::{future::BoxFuture, Future, FutureExt};
 
@@ -17,36 +17,53 @@ use crate::scope::Scope;
 /// # Unsafe contract
 ///
 /// - `body_future` and `result` will be dropped BEFORE `scope`.
-pub(crate) struct Body<'scope, 'env: 'scope, T: 'env + Unpin> {
+pub(crate) struct Body<'scope, 'env: 'scope, T: 'env + Unpin, C: Send + 'env> {
     body_future: Option<BoxFuture<'scope, T>>,
     result: Option<T>,
-    scope: Arc<Scope<'scope, 'env>>,
+    scope: Arc<Scope<'scope, 'env, C>>,
 }
 
-impl<'scope, 'env, T: Unpin> Body<'scope, 'env, T> {
+impl<'scope, 'env, T, C> Body<'scope, 'env, T, C>
+where
+    T: Unpin,
+    C: Send,
+{
     /// # Unsafe contract
     ///
     /// - `future` will be dropped BEFORE `scope`
-    pub(crate) fn new(future: BoxFuture<'scope, T>, scope: Arc<Scope<'scope, 'env>>) -> Self {
+    pub(crate) fn new(future: BoxFuture<'scope, T>, scope: Arc<Scope<'scope, 'env, C>>) -> Self {
         Self {
             body_future: Some(future),
             result: None,
             scope,
         }
     }
-}
 
-impl<'scope, 'env, T: Unpin> Drop for Body<'scope, 'env, T> {
-    fn drop(&mut self) {
-        // Fulfill our unsafe contract and ensure we drop other fields
-        // before we drop scope.
+    fn clear(&mut self) {
         self.body_future.take();
         self.result.take();
+        self.scope.clear();
     }
 }
 
-impl<'scope, 'env, T: Unpin> Future for Body<'scope, 'env, T> {
-    type Output = T;
+impl<'scope, 'env, T, C> Drop for Body<'scope, 'env, T, C>
+where
+    T: Unpin,
+    C: Send,
+{
+    fn drop(&mut self) {
+        // Fulfill our unsafe contract and ensure we drop other fields
+        // before we drop scope.
+        self.clear();
+    }
+}
+
+impl<'scope, 'env, T, C> Future for Body<'scope, 'env, T, C>
+where
+    T: Unpin,
+    C: Send,
+{
+    type Output = Result<T, C>;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
@@ -64,11 +81,11 @@ impl<'scope, 'env, T: Unpin> Future for Body<'scope, 'env, T> {
         }
 
         // Check if the scope is ready.
-        ready!(this.scope.drain(cx));
+        ready!(this.scope.drain(cx))?;
 
         match this.result.take() {
             None => Poll::Pending,
-            Some(v) => Poll::Ready(v),
+            Some(v) => Poll::Ready(Ok(v)),
         }
     }
 }

@@ -4,8 +4,11 @@ use futures::future::BoxFuture;
 
 #[macro_use]
 mod macros;
+
 mod body;
+mod cancel;
 mod scope;
+mod scope_body;
 
 /// Creates an async scope within which you can spawn jobs.
 ///
@@ -25,7 +28,7 @@ mod scope;
 ///         r
 ///     });
 ///     job.await * 2
-/// });
+/// }).infallible();
 /// let result = scope.await;
 /// assert_eq!(result, 22);
 /// # });
@@ -47,7 +50,7 @@ mod scope;
 /// let scope = moro::async_scope!(|scope| {
 ///     // OK to refer to `r` here
 ///     scope.spawn(async { r }).await
-/// });
+/// }).infallible();
 /// let result = scope.await;
 /// assert_eq!(result, 22);
 /// # });
@@ -65,7 +68,7 @@ mod scope;
 ///     // NOT ok to refer to `r` now, because `r`
 ///     // is defined inside the scope
 ///     scope.spawn(async { r }).await
-/// });
+/// }).infallible();
 /// let result = scope.await;
 /// assert_eq!(result, 22);
 /// # });
@@ -81,13 +84,15 @@ macro_rules! async_scope {
 }
 
 pub use self::scope::Scope;
+pub use self::scope_body::ScopeBody;
 
 /// Creates a new moro scope. Normally, you invoke this through `moro::async_scope!`.
-pub fn scope_fn<'env, T>(
-    body: impl for<'scope> FnOnce(&'scope Scope<'scope, 'env>) -> BoxFuture<'scope, T>,
-) -> impl Future<Output = T> + 'env
+pub fn scope_fn<'env, T, C>(
+    body: impl for<'scope> FnOnce(&'scope Scope<'scope, 'env, C>) -> BoxFuture<'scope, T>,
+) -> ScopeBody<'env, T, C>
 where
     T: Unpin + 'env,
+    C: Send + 'env,
 {
     let scope = Scope::new();
 
@@ -95,8 +100,8 @@ where
     // counting. The reference is held by `Body` below. `Body` will not drop
     // the `Arc` until the body_future is dropped, and the output `T` has to outlive
     // `'env` so it can't reference `scope`, so this should be ok.
-    let scope_ref: *const Scope = &*scope;
+    let scope_ref: *const Scope<'_, '_, C> = &*scope;
     let body_future = body(unsafe { &*scope_ref });
 
-    body::Body::new(body_future, scope)
+    ScopeBody::new(body::Body::new(body_future, scope))
 }
