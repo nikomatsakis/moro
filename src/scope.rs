@@ -25,6 +25,7 @@ fn is_sync<T: Sync>(t: T) -> T {
 }
 
 impl<'scope, 'env, C: Send> Scope<'scope, 'env, C> {
+    /// Create a scope.
     pub(crate) fn new() -> Arc<Self> {
         Arc::new(is_sync(Self {
             futures: Mutex::new(Box::pin(FuturesUnordered::new())),
@@ -34,7 +35,17 @@ impl<'scope, 'env, C: Send> Scope<'scope, 'env, C> {
         }))
     }
 
-    pub(crate) fn drain(&self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), C>> {
+    /// Polls the jobs that were spawned thus far. Returns:
+    ///
+    /// * `Pending` if there are jobs that cannot complete
+    /// * `Ready(Ok(()))` if all jobs are completed
+    /// * `Ready(Err(c))` if the scope has been canceled
+    ///
+    /// Should not be invoked again once `Ready(Err(c))` is returned.
+    ///
+    /// It is ok to invoke it again after `Ready(Ok(()))` has been returned;
+    /// if any new jobs have been spawned, they will execute.
+    pub(crate) fn poll_jobs(&self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), C>> {
         let mut futures = self.futures.lock().unwrap();
         'outer: loop {
             // once we are cancelled, we do no more work.
@@ -57,7 +68,7 @@ impl<'scope, 'env, C: Send> Scope<'scope, 'env, C> {
         }
     }
 
-    /// Clear out all pending tasks. This is used when dropping the
+    /// Clear out all pending jobs. This is used when dropping the
     /// scope body to ensure that any possible references to `Scope`
     /// are removed before we drop it.
     ///
@@ -69,11 +80,11 @@ impl<'scope, 'env, C: Send> Scope<'scope, 'env, C> {
         self.enqueued.lock().unwrap().clear();
     }
 
-    /// Cancel the scope immediately -- all existing tasks will stop at their next await point
+    /// Cancel the scope immediately -- all existing jobs will stop at their next await point
     /// and never wake up again. Anything on their stacks will be dropped.
     ///
     /// This returns a future that you can await, but it will never complete (because you will never be reawoken).
-    pub fn cancel<T>(&self, value: C) -> impl Future<Output = T> + 'scope
+    pub fn cancel<T>(&'scope self, value: C) -> impl Future<Output = T> + 'scope
     where
         T: std::fmt::Debug + Send + 'scope,
     {
@@ -87,11 +98,11 @@ impl<'scope, 'env, C: Send> Scope<'scope, 'env, C> {
         self.spawn(async { panic!() })
     }
 
-    /// Spawn a subjob. This will run concurrently with everything else in the scope.
-    /// It may access stack fields defined outside the scope.
-    /// The scope will not terminate until this task completes or the scope is cancelled.
+    /// Spawn a job that will run concurrently with everything else in the scope.
+    /// The job may access stack fields defined outside the scope.
+    /// The scope will not terminate until this job completes or the scope is cancelled.
     pub fn spawn<T>(
-        &self,
+        &'scope self,
         future: impl Future<Output = T> + Send + 'scope,
     ) -> impl Future<Output = T> + Send + 'scope
     where
@@ -111,6 +122,44 @@ impl<'scope, 'env, C: Send> Scope<'scope, 'env, C> {
         self.enqueued.lock().unwrap().push(Box::pin(async move {
             let v = future.await;
             let _ = tx.send(v).await;
+        }));
+
+        async move {
+            match rx.recv().await {
+                Ok(v) => v,
+                Err(e) => panic!("unexpected error: {e:?}"),
+            }
+        }
+    }
+
+    /// Spawn a job that returns `Result`. If the task returns `Err`, the
+    /// scope will be canceled as if [`Scope::cancel`] were called. If the job
+    /// returns `Ok(v)`, then `v` is used as the result of the job.
+    pub fn spawn_cancelling<T>(
+        &'scope self,
+        future: impl Future<Output = Result<T, C>> + Send + 'scope,
+    ) -> impl Future<Output = T> + Send + 'scope
+    where
+        T: std::fmt::Debug + Send + 'scope,
+    {
+        // Use a channel to communicate result from the *actual* future
+        // (which lives in the futures-unordered) and the caller.
+        // This is kind of crappy because, ideally, the caller expressing interest
+        // in the result of the future would let it run, but that would require
+        // more clever coding and I'm just trying to stand something up quickly
+        // here. What will happen when caller expresses an interest in result
+        // now is that caller will block which should (eventually) allow the
+        // futures-unordered to be polled and make progress. Good enough.
+
+        let (tx, rx) = async_channel::bounded(1);
+
+        self.enqueued.lock().unwrap().push(Box::pin(async move {
+            match future.await {
+                Ok(v) => {
+                    let _ = tx.send(v).await;
+                }
+                Err(e) => self.cancel(e).await,
+            }
         }));
 
         async move {

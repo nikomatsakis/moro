@@ -8,12 +8,7 @@ async fn main() {
 pub async fn run(inputs: Vec<i32>) -> anyhow::Result<()> {
     moro::async_scope!(|scope| {
         for input in &inputs {
-            let _ = scope.spawn(async {
-                match validate(input).await {
-                    Ok(()) => (),
-                    Err(e) => scope.cancel(e).await,
-                }
-            });
+            let _ = scope.spawn_cancelling(validate(input));
         }
     })
     .await

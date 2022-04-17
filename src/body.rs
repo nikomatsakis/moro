@@ -81,7 +81,7 @@ where
         }
 
         // Check if the scope is ready.
-        ready!(this.scope.drain(cx))?;
+        ready!(this.scope.poll_jobs(cx))?;
 
         match this.result.take() {
             None => Poll::Pending,
