@@ -1,4 +1,4 @@
-use std::{convert::Infallible, sync::Arc, task::Poll};
+use std::{sync::Arc, task::Poll};
 
 use futures::{future::BoxFuture, Future, FutureExt};
 

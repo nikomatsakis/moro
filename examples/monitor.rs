@@ -1,10 +1,3 @@
-use std::net::SocketAddr;
-
-use tokio::{
-    net::{TcpListener, TcpStream},
-    sync::mpsc,
-};
-
 #[tokio::main]
 async fn main() {
     eprintln!("all positive {:?}", run(vec![1, 2, 10]).await);

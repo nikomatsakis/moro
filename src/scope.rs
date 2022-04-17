@@ -6,7 +6,6 @@ use std::{
 };
 
 use futures::{future::BoxFuture, stream::FuturesUnordered, Future, Stream};
-use tokio::sync::oneshot::channel;
 
 pub struct Scope<'scope, 'env: 'scope, C: Send + 'env> {
     /// Stores the set of futures that have been spawned.
@@ -98,7 +97,7 @@ impl<'scope, 'env, C: Send> Scope<'scope, 'env, C> {
     where
         T: std::fmt::Debug + Send + 'scope,
     {
-        // Use a tokio channel to communicate result from the *actual* future
+        // Use a channel to communicate result from the *actual* future
         // (which lives in the futures-unordered) and the caller.
         // This is kind of crappy because, ideally, the caller expressing interest
         // in the result of the future would let it run, but that would require
@@ -107,15 +106,15 @@ impl<'scope, 'env, C: Send> Scope<'scope, 'env, C> {
         // now is that caller will block which should (eventually) allow the
         // futures-unordered to be polled and make progress. Good enough.
 
-        let (tx, rx) = channel();
+        let (tx, rx) = async_channel::bounded(1);
 
-        self.enqueued.lock().unwrap().push(Box::pin(async {
+        self.enqueued.lock().unwrap().push(Box::pin(async move {
             let v = future.await;
-            let _ = tx.send(v);
+            let _ = tx.send(v).await;
         }));
 
         async move {
-            match rx.await {
+            match rx.recv().await {
                 Ok(v) => v,
                 Err(e) => panic!("unexpected error: {e:?}"),
             }

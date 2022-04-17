@@ -1,12 +1,9 @@
-use std::future::Future;
-
 use futures::future::BoxFuture;
 
 #[macro_use]
 mod macros;
 
 mod body;
-mod cancel;
 mod scope;
 mod scope_body;
 
