@@ -7,6 +7,69 @@ mod macros;
 mod body;
 mod scope;
 
+/// Creates an async scope within which you can spawn jobs.
+///
+/// The scope is not considered to be complete until all jobs
+/// within the scope have completed. Jobs spawned within the scope
+/// can refer to stack variables that are defined outside
+/// the scope.
+///
+/// # Example
+///
+/// ```rust
+/// # futures::executor::block_on(async {
+/// let v = vec![1, 2, 3, 5];
+/// let scope = moro::async_scope!(|scope| {
+///     let job = scope.spawn(async {
+///         let r: i32 = v.iter().sum();
+///         r
+///     });
+///     job.await * 2
+/// });
+/// let result = scope.await;
+/// assert_eq!(result, 22);
+/// # });
+/// ```
+///
+/// For more examples, see the [examples] directory in the
+/// repository.
+///
+/// [examples]: https://github.com/nikomatsakis/structtastic/tree/main/examples
+///
+/// # Access to stack variables
+///
+/// Futures spawned inside an async scope can refer to
+/// stack variables defined outside the scope:
+///
+/// ```rust
+/// # futures::executor::block_on(async {
+/// let r = 22;
+/// let scope = moro::async_scope!(|scope| {
+///     // OK to refer to `r` here
+///     scope.spawn(async { r }).await
+/// });
+/// let result = scope.await;
+/// assert_eq!(result, 22);
+/// # });
+/// ```
+///
+/// but when you spawn a future, that future cannot refer to
+/// stack variables defined *inside* the scope (except its own
+/// variables, of course):
+///
+/// ```rust,compile_fail,E0373
+/// # futures::executor::block_on(async {
+/// let scope = moro::async_scope!(|scope| {
+///     let r = 22;
+//
+///     // NOT ok to refer to `r` now, because `r`
+///     // is defined inside the scope
+///     scope.spawn(async { r }).await
+/// });
+/// let result = scope.await;
+/// assert_eq!(result, 22);
+/// # });
+/// ```
 #[macro_export]
 macro_rules! async_scope {
     (|$scope:ident| $body:expr) => {{
