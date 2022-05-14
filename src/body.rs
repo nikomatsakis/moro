@@ -9,15 +9,10 @@ use crate::scope::Scope;
 /// It is not considered complete until (a) the body is done and (b) any spawned futures are done.
 /// Its result is whatever the body returned.
 ///
-/// # Notes
-///
-/// The `T: Unpin` requirement seems unfortunate but I am not smart enough at this moment
-/// to think about how to avoid it.
-///
 /// # Unsafe contract
 ///
 /// - `body_future` and `result` will be dropped BEFORE `scope`.
-pub(crate) struct Body<'scope, 'env: 'scope, T: 'env + Unpin, C: Send + 'env> {
+pub(crate) struct Body<'scope, 'env: 'scope, T: 'env, C: Send + 'env> {
     body_future: Option<BoxFuture<'scope, T>>,
     result: Option<T>,
     scope: Arc<Scope<'scope, 'env, C>>,
@@ -25,7 +20,6 @@ pub(crate) struct Body<'scope, 'env: 'scope, T: 'env + Unpin, C: Send + 'env> {
 
 impl<'scope, 'env, T, C> Body<'scope, 'env, T, C>
 where
-    T: Unpin,
     C: Send,
 {
     /// # Unsafe contract
@@ -48,7 +42,6 @@ where
 
 impl<'scope, 'env, T, C> Drop for Body<'scope, 'env, T, C>
 where
-    T: Unpin,
     C: Send,
 {
     fn drop(&mut self) {
@@ -60,7 +53,6 @@ where
 
 impl<'scope, 'env, T, C> Future for Body<'scope, 'env, T, C>
 where
-    T: Unpin,
     C: Send,
 {
     type Output = Result<T, C>;
@@ -89,3 +81,5 @@ where
         }
     }
 }
+
+impl<T, C: Send> Unpin for Body<'_, '_, T, C> {}

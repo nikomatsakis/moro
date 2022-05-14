@@ -88,7 +88,7 @@ pub fn scope_fn<'env, T, C>(
     body: impl for<'scope> FnOnce(&'scope Scope<'scope, 'env, C>) -> BoxFuture<'scope, T>,
 ) -> ScopeBody<'env, T, C>
 where
-    T: Unpin + 'env,
+    T: 'env,
     C: Send + 'env,
 {
     let scope = Scope::new();
