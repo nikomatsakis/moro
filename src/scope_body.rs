@@ -6,7 +6,6 @@ use crate::body::Body;
 
 pub struct ScopeBody<'env, T: 'env, C: 'env>
 where
-    T: Unpin,
     C: Send,
 {
     body: Body<'env, 'env, T, C>,
@@ -14,7 +13,6 @@ where
 
 impl<'env, T, C> ScopeBody<'env, T, C>
 where
-    T: Unpin,
     C: Send,
 {
     pub(crate) fn new(body: Body<'env, 'env, T, C>) -> Self {
@@ -22,7 +20,7 @@ where
     }
 }
 
-impl<'env, T: Unpin> ScopeBody<'env, T, Infallible> {
+impl<'env, T> ScopeBody<'env, T, Infallible> {
     pub async fn infallible(self) -> T {
         match self.body.await {
             Ok(v) => v,
@@ -33,7 +31,6 @@ impl<'env, T: Unpin> ScopeBody<'env, T, Infallible> {
 
 impl<'env, T, C> Future for ScopeBody<'env, T, C>
 where
-    T: Unpin,
     C: Send,
 {
     type Output = Result<T, C>;
@@ -45,3 +42,5 @@ where
         Pin::new(&mut self.get_mut().body).poll(cx)
     }
 }
+
+impl<T, C: Send> Unpin for ScopeBody<'_, T, C> {}
