@@ -12,20 +12,20 @@ use crate::scope::Scope;
 /// # Unsafe contract
 ///
 /// - `body_future` and `result` will be dropped BEFORE `scope`.
-pub(crate) struct Body<'scope, 'env: 'scope, T: 'env, C: Send + 'env> {
-    body_future: Option<BoxFuture<'scope, T>>,
-    result: Option<T>,
-    scope: Arc<Scope<'scope, 'env, C>>,
+pub(crate) struct Body<'scope, 'env: 'scope, R: Send + 'env> {
+    body_future: Option<BoxFuture<'scope, R>>,
+    result: Option<R>,
+    scope: Arc<Scope<'scope, 'env, R>>,
 }
 
-impl<'scope, 'env, T, C> Body<'scope, 'env, T, C>
+impl<'scope, 'env, R> Body<'scope, 'env, R>
 where
-    C: Send,
+    R: Send,
 {
     /// # Unsafe contract
     ///
     /// - `future` will be dropped BEFORE `scope`
-    pub(crate) fn new(future: BoxFuture<'scope, T>, scope: Arc<Scope<'scope, 'env, C>>) -> Self {
+    pub(crate) fn new(future: BoxFuture<'scope, R>, scope: Arc<Scope<'scope, 'env, R>>) -> Self {
         Self {
             body_future: Some(future),
             result: None,
@@ -40,9 +40,9 @@ where
     }
 }
 
-impl<'scope, 'env, T, C> Drop for Body<'scope, 'env, T, C>
+impl<'scope, 'env, R> Drop for Body<'scope, 'env, R>
 where
-    C: Send,
+    R: Send,
 {
     fn drop(&mut self) {
         // Fulfill our unsafe contract and ensure we drop other fields
@@ -51,11 +51,11 @@ where
     }
 }
 
-impl<'scope, 'env, T, C> Future for Body<'scope, 'env, T, C>
+impl<'scope, 'env, R> Future for Body<'scope, 'env, R>
 where
-    C: Send,
+    R: Send,
 {
-    type Output = Result<T, C>;
+    type Output = R;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
@@ -73,13 +73,18 @@ where
         }
 
         // Check if the scope is ready.
-        ready!(this.scope.poll_jobs(cx))?;
-
-        match this.result.take() {
-            None => Poll::Pending,
-            Some(v) => Poll::Ready(Ok(v)),
+        //
+        // If polling the scope returns `Some`, then the scope was early terminated,
+        // so forward that result. Otherwise, the `result` from our body future
+        // should be available, so return that.
+        match ready!(this.scope.poll_jobs(cx)) {
+            Some(v) => return Poll::Ready(v),
+            None => match this.result.take() {
+                None => Poll::Pending,
+                Some(v) => Poll::Ready(v),
+            },
         }
     }
 }
 
-impl<T, C: Send> Unpin for Body<'_, '_, T, C> {}
+impl<R: Send> Unpin for Body<'_, '_, R> {}

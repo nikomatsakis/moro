@@ -4,8 +4,11 @@ use futures::future::BoxFuture;
 mod macros;
 
 mod body;
+pub mod prelude;
+mod result_ext;
 mod scope;
 mod scope_body;
+mod spawned;
 
 /// Creates an async scope within which you can spawn jobs.
 /// This works much like the stdlib's
@@ -30,7 +33,7 @@ mod scope_body;
 ///
 /// ```rust
 /// # futures::executor::block_on(async {
-/// let scope = moro::async_scope!(|scope| {/* ... */}).infallible().await;
+/// let scope = moro::async_scope!(|scope| {/* ... */}).await;
 /// # });
 /// ```
 ///
@@ -45,7 +48,7 @@ mod scope_body;
 /// let scope = moro::async_scope!(|scope| {
 ///     // OK to refer to `r` here
 ///     scope.spawn(async { r }).await
-/// }).infallible();
+/// });
 /// let result = scope.await;
 /// assert_eq!(result, 22);
 /// # });
@@ -63,13 +66,15 @@ mod scope_body;
 ///     // NOT ok to refer to `r` now, because `r`
 ///     // is defined inside the scope
 ///     scope.spawn(async { r }).await
-/// }).infallible();
+/// });
 /// let result = scope.await;
 /// assert_eq!(result, 22);
 /// # });
 /// ```
 ///
 /// # Examples
+///
+/// ## Hello, world
 ///
 /// The following scope spawns one concurrent task which iterates over
 /// the vector `v` and sums its values; the [`infallible`][`Scope::infallible`]
@@ -84,11 +89,29 @@ mod scope_body;
 ///         r
 ///     });
 ///     job.await * 2
-/// }).infallible();
+/// });
 /// let result = scope.await;
 /// assert_eq!(result, 22);
 /// # });
 /// ```
+///
+/// ## Specifying the result type
+///
+/// You can use the `->` notation to specify the type of value
+/// returned by the scope. This is useful to guide type inference
+/// sometimes:
+///
+/// ```rust
+/// # futures::executor::block_on(async {
+/// let scope = moro::async_scope!(|scope| -> Result<(), u32> {
+///     Err(22) // Ok type would otherwise be unconstrained
+/// });
+/// let result = scope.await;
+/// assert_eq!(result, Err(22));
+/// # });
+/// ```
+///
+/// ## More
 ///
 /// For more examples, see the [examples] directory in the
 /// repository.
@@ -97,6 +120,12 @@ mod scope_body;
 ///
 #[macro_export]
 macro_rules! async_scope {
+    (|$scope:ident| -> $result:ty { $($body:tt)* }) => {{
+        $crate::scope_fn::<$result, _>(|$scope| {
+            let future = async { $($body)* };
+            Box::pin(future)
+        })
+    }};
     (|$scope:ident| $body:expr) => {{
         $crate::scope_fn(|$scope| {
             let future = async { $body };
@@ -107,14 +136,13 @@ macro_rules! async_scope {
 
 pub use self::scope::Scope;
 pub use self::scope_body::ScopeBody;
+pub use self::spawned::Spawned;
 
 /// Creates a new moro scope. Normally, you invoke this through `moro::async_scope!`.
-pub fn scope_fn<'env, T, C>(
-    body: impl for<'scope> FnOnce(&'scope Scope<'scope, 'env, C>) -> BoxFuture<'scope, T>,
-) -> ScopeBody<'env, T, C>
+pub fn scope_fn<'env, R, B>(body: B) -> ScopeBody<'env, R>
 where
-    T: 'env,
-    C: Send + 'env,
+    R: Send + 'env,
+    B: for<'scope> FnOnce(&'scope Scope<'scope, 'env, R>) -> BoxFuture<'scope, R>,
 {
     let scope = Scope::new();
 
@@ -122,7 +150,7 @@ where
     // counting. The reference is held by `Body` below. `Body` will not drop
     // the `Arc` until the body_future is dropped, and the output `T` has to outlive
     // `'env` so it can't reference `scope`, so this should be ok.
-    let scope_ref: *const Scope<'_, '_, C> = &*scope;
+    let scope_ref: *const Scope<'_, '_, R> = &*scope;
     let body_future = body(unsafe { &*scope_ref });
 
     ScopeBody::new(body::Body::new(body_future, scope))

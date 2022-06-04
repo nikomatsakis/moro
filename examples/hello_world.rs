@@ -15,8 +15,7 @@ pub async fn main() {
 
         let v = future1.await * 2;
         v
-    })
-    .infallible();
+    });
     let result = scope.await;
     println!("{result:?}");
 }

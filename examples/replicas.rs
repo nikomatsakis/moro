@@ -31,7 +31,6 @@ async fn main() {
             eprintln!("Host {host} received {count} bytes.");
         }
     })
-    .infallible()
     .await;
 
     eprintln!("All done")

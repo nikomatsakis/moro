@@ -1,39 +1,30 @@
-use std::{convert::Infallible, pin::Pin};
+use std::pin::Pin;
 
 use futures::Future;
 
 use crate::body::Body;
 
-pub struct ScopeBody<'env, T: 'env, C: 'env>
+pub struct ScopeBody<'env, R: 'env>
 where
-    C: Send,
+    R: Send,
 {
-    body: Body<'env, 'env, T, C>,
+    body: Body<'env, 'env, R>,
 }
 
-impl<'env, T, C> ScopeBody<'env, T, C>
+impl<'env, R> ScopeBody<'env, R>
 where
-    C: Send,
+    R: Send,
 {
-    pub(crate) fn new(body: Body<'env, 'env, T, C>) -> Self {
+    pub(crate) fn new(body: Body<'env, 'env, R>) -> Self {
         Self { body }
     }
 }
 
-impl<'env, T> ScopeBody<'env, T, Infallible> {
-    pub async fn infallible(self) -> T {
-        match self.body.await {
-            Ok(v) => v,
-            Err(_) => unreachable!(),
-        }
-    }
-}
-
-impl<'env, T, C> Future for ScopeBody<'env, T, C>
+impl<'env, R> Future for ScopeBody<'env, R>
 where
-    C: Send,
+    R: Send,
 {
-    type Output = Result<T, C>;
+    type Output = R;
 
     fn poll(
         self: std::pin::Pin<&mut Self>,
@@ -43,4 +34,4 @@ where
     }
 }
 
-impl<T, C: Send> Unpin for ScopeBody<'_, T, C> {}
+impl<R: Send> Unpin for ScopeBody<'_, R> {}
