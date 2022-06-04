@@ -70,7 +70,7 @@ Apparently though "moros" is also the ['hateful' spirit of impending doom](https
 
 ### Why do moro spawns only run concurrently, not parallel?
 
-Parallel moro tasks cannot, with Rust as it is today, be done safely. The full details are in the next question, but the tl;dr is that when a moro scope yields to its caller, the scope is "giving up control" to its caller, and that caller can -- if it chooses -- just forget the scope entirely and stop executing it. This means that if the moro scope has started parallel threads, those threads will go on accessing the caller's data, which can create data races. Not good.
+Parallel moro tasks cannot, with Rust as it is today, be done safely. The full details are in a later question, but the tl;dr is that when a moro scope yields to its caller, the scope is "giving up control" to its caller, and that caller can -- if it chooses -- just forget the scope entirely and stop executing it. This means that if the moro scope has started parallel threads, those threads will go on accessing the caller's data, which can create data races. Not good.
 
 ### Isn't running concurrently a huge limitation?
 
