@@ -64,7 +64,7 @@ I want to do this. :)
 
 ### Where does the name `moro` come from?
 
-It's the Greek word for "baby". The popular ["trio"](https://trio.readthedocs.io/en/stable/) library uses the term "nursery" to refer to a scope, so I wanted to honor that lineage.
+It's from the Greek word for "baby" (μωρό). The popular ["trio"](https://trio.readthedocs.io/en/stable/) library uses the term "nursery" to refer to a scope, so I wanted to honor that lineage.
 
 Apparently though "moros" is also the ['hateful' spirit of impending doom](https://en.wikipedia.org/wiki/Moros), which I didn't know, but is kinda' awesome.
 
