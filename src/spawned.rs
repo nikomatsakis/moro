@@ -1,5 +1,7 @@
 use std::pin::Pin;
 
+use crate::prelude::*;
+use crate::Scope;
 use futures::Future;
 
 pub struct Spawned<F> {
@@ -26,5 +28,24 @@ where
             let f = Pin::new_unchecked(&mut self.get_unchecked_mut().f);
             F::poll(f, cx)
         }
+    }
+}
+
+impl<F, O, E> Spawned<F>
+where
+    F: Future<Output = Result<O, E>> + Send,
+    O: Send,
+    E: Send,
+{
+    pub fn or_cancel<'scope, 'env, T>(
+        self,
+        scope: &'scope Scope<'scope, 'env, Result<T, E>>,
+    ) -> impl Future<Output = O> + 'scope
+    where
+        T: Send,
+        O: 'scope,
+        F: 'scope,
+    {
+        scope.spawn(async { self.await.unwrap_or_cancel(scope).await })
     }
 }
