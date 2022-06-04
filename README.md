@@ -66,6 +66,8 @@ I want to do this. :)
 
 It's the Greek word for "baby". The popular ["trio"](https://trio.readthedocs.io/en/stable/) library uses the term "nursery" to refer to a scope, so I wanted to honor that lineage.
 
+Apparently though "moros" is also the ['hateful' spirit of impending doom](https://en.wikipedia.org/wiki/Moros), which I didn't know, but is kinda' awesome.
+
 ### Why do moro spawns only run concurrently, not parallel?
 
 Parallel moro tasks cannot, with Rust as it is today, be done safely. The full details are in the next question, but the tl;dr is that when a moro scope yields to its caller, the scope is "giving up control" to its caller, and that caller can -- if it chooses -- just forget the scope entirely and stop executing it. This means that if the moro scope has started parallel threads, those threads will go on accessing the caller's data, which can create data races. Not good.
