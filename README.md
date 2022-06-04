@@ -21,7 +21,6 @@ let result = moro::async_scope!(|scope| {
     let v = future1.await * 2;
     v
 })
-.infallible()
 .await;
 eprintln!("{result}"); // prints 88
 ```
@@ -35,21 +34,12 @@ Within the scope body (`...`) you can invoke `scope.spawn(async { ... })` to spa
 This job must terminate before the scope itself is considered completed. 
 The result of `scope.spawn` is a future whose result is the result returned by the job.
 
-## Cancellation
+## Early termination and cancellation
 
-The `async_scope!` macro itself optionally supports *cancellation*.
-When you cancel a scope, all the work within that scope immediately
-terminates and all futures are dropped (in the future, we'll support
-async drop to allow them to do work). 
-
-To reflect cancellation, the future you get back from `async_scope`
-has type `Result<T, C>`, where `T` is the type your scope body returns
-and `C` is the *cancellation* type. You cancel a scope by invoking
-`scope.cancel(c)`.
-
-If your scope is never cancelled, you can use the `infallible` method
-to create an infallible async scope (whose result is just `T`).
-An example is shown in the [hello world](examples/hello_world.rs) example.
+Moro scopes support *early termination* or *cancellation*.
+You can invoke [`scope.terminate(v).await`](https://docs.rs/moro/latest/moro/struct.Scope.html#method.terminate) 
+and all spawned threads within the scope will immediately stop executing.
+Termination is commonly used when `v` is a `Result` to make `Err` values cancel
 
 An example that uses cancellation is shown in [monitor](examples/monitor.rs) --
 in this example, several jobs are spawned which all examine one integer from
