@@ -4,8 +4,7 @@ Experiments with structured concurrency in Rust
 
 ## TL;DR
 
-Similar to rayon, moro let's you create a *scope* using a `moro::async_scope!` macro.
-Within this scope, you can spawn jobs that can access stack data defined outside the scope:
+Similar to [rayon] or [`std::thread::scope`], moro let's you create a *scope* using a `moro::async_scope!` macro. Within this scope, you can spawn jobs that can access stack data defined outside the scope:
 
 ```rust
 let value = 22;
@@ -107,3 +106,7 @@ Note that this problem doesn't occur in libraries like [rayon](https://crates.io
 
 I do not believe parallel execution can be safely enabled without modifying the `Future` trait or Rust in some way. There are various proposals to change the `Future` trait to permit moro to support parallel execution (those same proposals would help for supporting io-uring, DMA, and other features), but the exact path forward hasn't been settled.
 
+
+[rayon]: https://crates.io/crates/rayon
+
+[`std::thread::scope`]: https://doc.rust-lang.org/std/thread/fn.scope.html
