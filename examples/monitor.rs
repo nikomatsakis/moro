@@ -21,3 +21,16 @@ pub async fn validate(input: &i32) -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn all_positive() {
+    assert!(run(vec![1, 2, 10]).await.is_ok());
+}
+
+#[tokio::test]
+async fn some_negative() {
+    match run(vec![1, 2, -3, 10]).await {
+        Err(_) => (),
+        Ok(()) => panic!("expected an error"),
+    }
+}
