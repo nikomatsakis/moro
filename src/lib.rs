@@ -4,6 +4,7 @@ use futures::future::BoxFuture;
 mod macros;
 
 mod body;
+mod future_ext;
 pub mod prelude;
 mod result_ext;
 mod scope;

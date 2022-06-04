@@ -130,7 +130,7 @@ impl<'scope, 'env, R: Send> Scope<'scope, 'env, R> {
     pub fn spawn<T>(
         &'scope self,
         future: impl Future<Output = T> + Send + 'scope,
-    ) -> Spawned<impl Future<Output = T> + Send>
+    ) -> impl Future<Output = T> + Send + 'scope
     where
         T: 'scope + Send,
     {

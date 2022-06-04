@@ -1,3 +1,5 @@
+use moro::prelude::*;
+
 #[tokio::main]
 async fn main() {
     eprintln!("all positive {:?}", run(vec![1, 2, 10]).await);
