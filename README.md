@@ -67,6 +67,14 @@ It's from the Greek word for "baby" (μωρό). The popular ["trio"](https://tri
 
 Apparently though "moros" is also the ['hateful' spirit of impending doom](https://en.wikipedia.org/wiki/Moros), which I didn't know, but is kinda' awesome.
 
+### Are there other async nursery projects available, and how does moro compare?
+
+Yes! I'm aware of...
+
+* [`async_nursery`](https://crates.io/crates/async_nursery), which is similar to moro but provides parallel execution (not just concurrent), but -- as a result -- requires a `'static` bound.
+* [`FuturesUnordered`](https://docs.rs/futures/latest/futures/stream/struct.FuturesUnordered.html), which can be used as a kind of nursery, but which also has a [number](https://rust-lang.github.io/wg-async/vision/submitted_stories/status_quo/aws_engineer/solving_a_deadlock.html) of [known](https://github.com/rust-lang/futures-rs/issues/2387) [footguns](https://rust-lang.github.io/wg-async/vision/submitted_stories/status_quo/barbara_battles_buffered_streams.html). This type is currently used in the moro implementation, but moro's API prevents those footguns from happening.
+* [`select`](https://docs.rs/futures/latest/futures/future/fn.select.html) operations are commonly used to "model" parallel streams; like with `FuturesUnordered`, this is an errorprone approach, and moro evolved in part as an alternative to `select`-like APIs.
+
 ### Why do moro spawns only run concurrently, not parallel?
 
 Parallel moro tasks cannot, with Rust as it is today, be done safely. The full details are in a later question, but the tl;dr is that when a moro scope yields to its caller, the scope is "giving up control" to its caller, and that caller can -- if it chooses -- just forget the scope entirely and stop executing it. This means that if the moro scope has started parallel threads, those threads will go on accessing the caller's data, which can create data races. Not good.
