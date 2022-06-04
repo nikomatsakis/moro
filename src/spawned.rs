@@ -46,6 +46,6 @@ where
         O: 'scope,
         F: 'scope,
     {
-        scope.spawn(async { self.await.or_cancel(scope).await })
+        scope.spawn(async { self.await.unwrap_or_cancel(scope).await })
     }
 }

@@ -40,6 +40,7 @@ Moro scopes support *early termination* or *cancellation*.
 You can invoke [`scope.terminate(v).await`](https://docs.rs/moro/latest/moro/struct.Scope.html#method.terminate) 
 and all spawned threads within the scope will immediately stop executing.
 Termination is commonly used when `v` is a `Result` to make `Err` values cancel
+(we offer helper methods like `unwrap_or_cancel` for this in the prelude).
 
 An example that uses cancellation is shown in [monitor](examples/monitor.rs) --
 in this example, several jobs are spawned which all examine one integer from

@@ -1,1 +1,1 @@
-pub use crate::result_ext::OrCancel;
+pub use crate::result_ext::UnwrapOrCancel;

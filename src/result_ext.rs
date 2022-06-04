@@ -1,11 +1,11 @@
 use crate::Scope;
 
 #[async_trait::async_trait]
-pub trait OrCancel: Send + Sized {
+pub trait UnwrapOrCancel: Send + Sized {
     type Ok: Send;
     type Err: Send;
 
-    async fn or_cancel<'scope, 'env, T>(
+    async fn unwrap_or_cancel<'scope, 'env, T>(
         self,
         scope: &'scope Scope<'scope, 'env, Result<T, Self::Err>>,
     ) -> Self::Ok
@@ -15,7 +15,7 @@ pub trait OrCancel: Send + Sized {
 }
 
 #[async_trait::async_trait]
-impl<O, E> OrCancel for Result<O, E>
+impl<O, E> UnwrapOrCancel for Result<O, E>
 where
     O: Send,
     E: Send,
@@ -23,7 +23,10 @@ where
     type Ok = O;
     type Err = E;
 
-    async fn or_cancel<'scope, 'env, T>(self, scope: &'scope Scope<'scope, 'env, Result<T, E>>) -> O
+    async fn unwrap_or_cancel<'scope, 'env, T>(
+        self,
+        scope: &'scope Scope<'scope, 'env, Result<T, E>>,
+    ) -> O
     where
         T: Send,
         Self: 'env,
