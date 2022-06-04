@@ -8,6 +8,9 @@ mod scope;
 mod scope_body;
 
 /// Creates an async scope within which you can spawn jobs.
+/// This works much like the stdlib's
+/// [`scope`](https://doc.rust-lang.org/std/thread/fn.scope.html)
+/// function.
 ///
 /// The scope is not considered to be complete until all jobs
 /// within the scope have completed. Jobs spawned within the scope

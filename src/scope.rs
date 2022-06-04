@@ -11,6 +11,7 @@ use futures::{
     Future, Stream,
 };
 
+/// Represents a moro "async scope". See the [`async_scope`][crate::async_scope] macro for details.
 pub struct Scope<'scope, 'env: 'scope, C: Send + 'env> {
     /// Stores the set of futures that have been spawned.
     ///
