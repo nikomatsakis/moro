@@ -78,7 +78,7 @@ Sort of? Parallel would definitely be nice, but for many async servers, you get 
 
 ### OK, but why do moro spawns only run concurrently, not parallel? Give me the details!
 
-The [`Future::poll`](https://doc.rust-lang.org/std/future/trait.Future.html#tymethod.poll) method permits safe code to "partially advance" a future and then, because a future is an ordinary Rust value, "forget" it (e.g., via [`std::mem::forget`], though there are other ways. This would allow you to create a scope, execute it a few times, and then discard it without running any destructor:
+The [`Future::poll`](https://doc.rust-lang.org/std/future/trait.Future.html#tymethod.poll) method permits safe code to "partially advance" a future and then, because a future is an ordinary Rust value, "forget" it (e.g., via [`std::mem::forget`](https://doc.rust-lang.org/std/mem/fn.forget.html), though there are other ways. This would allow you to create a scope, execute it a few times, and then discard it without running any destructor:
 
 ```rust
 async fn method() {
