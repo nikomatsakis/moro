@@ -14,27 +14,22 @@ mod scope_body;
 /// can refer to stack variables that are defined outside
 /// the scope.
 ///
-/// # Example
+/// # Cancellable vs infallible scopes
+///
+/// By default, moro scopes support *cancellation*,
+/// which means that you can cancel the entire scope by invoking
+/// `scope.cancel(v)`. Cancellable scopes return a [`Result`] value
+/// whose error type is the type of `v`. If your scope does not use `cancel`,
+/// you will get compilation errors because the error type cannot be inferred!
+///
+/// To avoid this, use the `infallible` method on the scope to convert it
+/// into a non-cancellable scope:
 ///
 /// ```rust
 /// # futures::executor::block_on(async {
-/// let v = vec![1, 2, 3, 5];
-/// let scope = moro::async_scope!(|scope| {
-///     let job = scope.spawn(async {
-///         let r: i32 = v.iter().sum();
-///         r
-///     });
-///     job.await * 2
-/// }).infallible();
-/// let result = scope.await;
-/// assert_eq!(result, 22);
+/// let scope = moro::async_scope!(|scope| {/* ... */}).infallible().await;
 /// # });
 /// ```
-///
-/// For more examples, see the [examples] directory in the
-/// repository.
-///
-/// [examples]: https://github.com/nikomatsakis/structtastic/tree/main/examples
 ///
 /// # Access to stack variables
 ///
@@ -70,6 +65,33 @@ mod scope_body;
 /// assert_eq!(result, 22);
 /// # });
 /// ```
+///
+/// # Examples
+///
+/// The following scope spawns one concurrent task which iterates over
+/// the vector `v` and sums its values; the [`infallible`][`Scope::infallible`]
+/// method is used to indicate that the scope is never cancelled:
+///
+/// ```rust
+/// # futures::executor::block_on(async {
+/// let v = vec![1, 2, 3, 5];
+/// let scope = moro::async_scope!(|scope| {
+///     let job = scope.spawn(async {
+///         let r: i32 = v.iter().sum();
+///         r
+///     });
+///     job.await * 2
+/// }).infallible();
+/// let result = scope.await;
+/// assert_eq!(result, 22);
+/// # });
+/// ```
+///
+/// For more examples, see the [examples] directory in the
+/// repository.
+///
+/// [examples]: https://github.com/nikomatsakis/structtastic/tree/main/examples
+///
 #[macro_export]
 macro_rules! async_scope {
     (|$scope:ident| $body:expr) => {{

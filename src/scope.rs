@@ -5,7 +5,11 @@ use std::{
     task::Poll,
 };
 
-use futures::{future::BoxFuture, stream::FuturesUnordered, Future, Stream};
+use futures::{
+    future::{self, BoxFuture},
+    stream::FuturesUnordered,
+    Future, Stream,
+};
 
 pub struct Scope<'scope, 'env: 'scope, C: Send + 'env> {
     /// Stores the set of futures that have been spawned.
@@ -83,19 +87,63 @@ impl<'scope, 'env, C: Send> Scope<'scope, 'env, C> {
     /// Cancel the scope immediately -- all existing jobs will stop at their next await point
     /// and never wake up again. Anything on their stacks will be dropped.
     ///
-    /// This returns a future that you can await, but it will never complete (because you will never be reawoken).
+    /// This returns a future that you should await, but it will never complete
+    /// (because you will never be reawoken).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # futures::executor::block_on(async {
+    /// let result = moro::async_scope!(|scope| {
+    ///     scope.spawn(async { /* ... */ });
+    ///
+    ///     // Calling `scope.cancel` here will cancel the async
+    ///     // scope and use the string `"cancellation-value"` as
+    ///     // the cancellation value.
+    ///     let result: () = scope.cancel("cancellation-value").await;
+    /// }).await;
+    ///
+    /// assert_eq!(result, Err("cancellation-value"));
+    /// # });
+    /// ```
     pub fn cancel<T>(&'scope self, value: C) -> impl Future<Output = T> + 'scope
     where
-        T: std::fmt::Debug + Send + 'scope,
+        T: 'scope + Send,
     {
         let mut lock = self.cancelled.lock().unwrap();
         if lock.is_none() {
-            *lock = Some(value);
+            *lock = Some(value.into());
         }
         std::mem::drop(lock);
 
         // The code below will never run
         self.spawn(async { panic!() })
+    }
+
+    /// Cancels the scope if the [`Result`] argument is [`Err`][`Result::Err`]; returns a future to the success value otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # futures::executor::block_on(async {
+    /// let result = moro::async_scope!(|scope| {
+    ///     scope.spawn(async { /* ... */ });
+    ///
+    ///     let v: Result<char, &str> = Err("cancellation-value");
+    ///     let c: char = scope.cancel_if_err(v).await;
+    ///     println!("success: {c}"); // never executes
+    /// }).await;
+    /// assert_eq!(result, Err("cancellation-value"));
+    /// # });
+    /// ```
+    pub fn cancel_if_err<O>(&'scope self, value: Result<O, C>) -> impl Future<Output = O> + 'scope
+    where
+        O: 'scope + Send,
+    {
+        match value {
+            Ok(o) => future::Either::Left(future::ready(o)),
+            Err(c) => future::Either::Right(self.cancel(c)),
+        }
     }
 
     /// Spawn a job that will run concurrently with everything else in the scope.
@@ -104,9 +152,9 @@ impl<'scope, 'env, C: Send> Scope<'scope, 'env, C> {
     pub fn spawn<T>(
         &'scope self,
         future: impl Future<Output = T> + Send + 'scope,
-    ) -> impl Future<Output = T> + Send + 'scope
+    ) -> impl Future<Output = T> + Send
     where
-        T: std::fmt::Debug + Send + 'scope,
+        T: 'scope + Send,
     {
         // Use a channel to communicate result from the *actual* future
         // (which lives in the futures-unordered) and the caller.
@@ -140,7 +188,7 @@ impl<'scope, 'env, C: Send> Scope<'scope, 'env, C> {
         future: impl Future<Output = Result<T, C>> + Send + 'scope,
     ) -> impl Future<Output = T> + Send + 'scope
     where
-        T: std::fmt::Debug + Send + 'scope,
+        T: Send + 'scope,
     {
         // Use a channel to communicate result from the *actual* future
         // (which lives in the futures-unordered) and the caller.
