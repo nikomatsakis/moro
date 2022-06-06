@@ -17,3 +17,6 @@ async-trait = "0.1.56"
 [dev-dependencies]
 anyhow = "1"
 tokio = { version = "1.17.0", features = ["full"] }
+
+[workspace]
+members = ["mini-redis"]

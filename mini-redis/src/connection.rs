@@ -3,37 +3,33 @@ use crate::frame::{self, Frame};
 use bytes::{Buf, BytesMut};
 use std::io::{self, Cursor};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 
-/// Send and receive `Frame` values from a remote peer.
+/// Receive `Frame` values from a remote peer.
 ///
 /// When implementing networking protocols, a message on that protocol is
 /// often composed of several smaller messages known as frames. The purpose of
-/// `Connection` is to read and write frames on the underlying `TcpStream`.
+/// `Connection` is to read frames on the underlying `TcpStream`.
 ///
 /// To read frames, the `Connection` uses an internal buffer, which is filled
 /// up until there are enough bytes to create a full frame. Once this happens,
 /// the `Connection` creates the frame and returns it to the caller.
-///
-/// When sending frames, the frame is first encoded into the write buffer.
-/// The contents of the write buffer are then written to the socket.
 #[derive(Debug)]
-pub struct Connection {
-    // The `TcpStream`. It is decorated with a `BufWriter`, which provides write
-    // level buffering. The `BufWriter` implementation provided by Tokio is
-    // sufficient for our needs.
-    stream: BufWriter<TcpStream>,
+pub struct ReadConnection {
+    // The `TcpStream`.
+    stream: OwnedReadHalf,
 
     // The buffer for reading frames.
     buffer: BytesMut,
 }
 
-impl Connection {
+impl ReadConnection {
     /// Create a new `Connection`, backed by `socket`. Read and write buffers
     /// are initialized.
-    pub fn new(socket: TcpStream) -> Connection {
-        Connection {
-            stream: BufWriter::new(socket),
+    pub fn new(stream: OwnedReadHalf) -> Self {
+        Self {
+            stream,
             // Default to a 4KB read buffer. For the use case of mini redis,
             // this is fine. However, real applications will want to tune this
             // value to their specific use case. There is a high likelihood that
@@ -144,6 +140,22 @@ impl Connection {
             Err(e) => Err(e.into()),
         }
     }
+}
+
+#[derive(Debug)]
+pub struct WriteConnection {
+    // The `TcpStream`.
+    stream: BufWriter<OwnedWriteHalf>,
+}
+
+impl WriteConnection {
+    /// Create a new `Connection`, backed by `socket`. Read and write buffers
+    /// are initialized.
+    pub fn new(stream: OwnedWriteHalf) -> Self {
+        Self {
+            stream: BufWriter::new(stream),
+        }
+    }
 
     /// Write a single `Frame` value to the underlying stream.
     ///
@@ -232,5 +244,62 @@ impl Connection {
         self.stream.write_all(b"\r\n").await?;
 
         Ok(())
+    }
+}
+
+/// Send and receive `Frame` values from a remote peer.
+///
+/// When implementing networking protocols, a message on that protocol is
+/// often composed of several smaller messages known as frames. The purpose of
+/// `Connection` is to read and write frames on the underlying `TcpStream`.
+///
+/// To read frames, the `Connection` uses an internal buffer, which is filled
+/// up until there are enough bytes to create a full frame. Once this happens,
+/// the `Connection` creates the frame and returns it to the caller.
+///
+/// When sending frames, the frame is first encoded into the write buffer.
+/// The contents of the write buffer are then written to the socket.
+#[derive(Debug)]
+pub struct Connection {
+    reader: ReadConnection,
+    writer: WriteConnection,
+}
+
+impl Connection {
+    /// Create a new `Connection`, backed by `socket`. Read and write buffers
+    /// are initialized.
+    pub fn new(socket: TcpStream) -> Connection {
+        let (reader, writer) = socket.into_split();
+        Self {
+            reader: ReadConnection::new(reader),
+            writer: WriteConnection::new(writer),
+        }
+    }
+
+    /// Read a single `Frame` value from the underlying stream.
+    ///
+    /// The function waits until it has retrieved enough data to parse a frame.
+    /// Any data remaining in the read buffer after the frame has been parsed is
+    /// kept there for the next call to `read_frame`.
+    ///
+    /// # Returns
+    ///
+    /// On success, the received frame is returned. If the `TcpStream`
+    /// is closed in a way that doesn't break a frame in half, it returns
+    /// `None`. Otherwise, an error is returned.
+    pub async fn read_frame(&mut self) -> crate::Result<Option<Frame>> {
+        self.reader.read_frame().await
+    }
+
+    /// Write a single `Frame` value to the underlying stream.
+    ///
+    /// The `Frame` value is written to the socket using the various `write_*`
+    /// functions provided by `AsyncWrite`. Calling these functions directly on
+    /// a `TcpStream` is **not** advised, as this will result in a large number of
+    /// syscalls. However, it is fine to call these functions on a *buffered*
+    /// write stream. The data will be written to the buffer. Once the buffer is
+    /// full, it is flushed to the underlying socket.
+    pub async fn write_frame(&mut self, frame: &Frame) -> io::Result<()> {
+        self.writer.write_frame(frame).await
     }
 }
