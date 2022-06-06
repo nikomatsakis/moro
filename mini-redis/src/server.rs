@@ -240,26 +240,30 @@ impl Listener {
             // error here is non-recoverable.
             let socket = self.accept().await?;
 
-            // Create the necessary per-connection handler state.
-            let mut handler = Handler {
-                // Get a handle to the shared database.
-                db: self.db_holder.db(),
-
-                // Initialize the connection state. This allocates read/write
-                // buffers to perform redis protocol frame parsing.
-                connection: Connection::new(socket),
-
-                // Receive shutdown notifications.
-                shutdown: Shutdown::new(self.notify_shutdown.subscribe()),
-
-                // Notifies the receiver half once all clones are
-                // dropped.
-                _shutdown_complete: self.shutdown_complete_tx.clone(),
-            };
+            let db = self.db_holder.db();
+            let shutdown = Shutdown::new(self.notify_shutdown.subscribe());
+            let shutdown_complete = self.shutdown_complete_tx.clone();
 
             // Spawn a new task to process the connections. Tokio tasks are like
             // asynchronous green threads and are executed concurrently.
             tokio::spawn(async move {
+                // Create the necessary per-connection handler state.
+                let mut handler = Handler {
+                    // Get a handle to the shared database.
+                    db,
+
+                    // Initialize the connection state. This allocates read/write
+                    // buffers to perform redis protocol frame parsing.
+                    connection: Connection::new(socket),
+
+                    // Receive shutdown notifications.
+                    shutdown,
+
+                    // Notifies the receiver half once all clones are
+                    // dropped.
+                    _shutdown_complete: shutdown_complete,
+                };
+
                 // Process the connection. If an error is encountered, log it.
                 if let Err(err) = handler.run().await {
                     error!(cause = ?err, "connection error");
