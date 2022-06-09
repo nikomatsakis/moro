@@ -1,4 +1,5 @@
 use futures::future::BoxFuture;
+use scope_data::ScopeData;
 
 #[macro_use]
 mod macros;
@@ -8,6 +9,7 @@ pub mod prelude;
 mod result_ext;
 mod scope;
 mod scope_body;
+mod scope_data;
 mod spawned;
 
 /// Creates an async scope within which you can spawn jobs.
@@ -142,16 +144,18 @@ pub use self::spawned::Spawned;
 pub fn scope_fn<'env, R, B>(body: B) -> ScopeBody<'env, R>
 where
     R: Send + 'env,
-    B: for<'scope> FnOnce(&'scope Scope<'scope, 'env, R>) -> BoxFuture<'scope, R>,
+    B: for<'scope> FnOnce(Scope<'scope, 'env, R>) -> BoxFuture<'scope, R>,
 {
-    let scope = Scope::new();
+    let scope_data = ScopeData::new();
 
     // Unsafe: We are letting the body use the `Arc<Scope>` without reference
     // counting. The reference is held by `Body` below. `Body` will not drop
     // the `Arc` until the body_future is dropped, and the output `T` has to outlive
     // `'env` so it can't reference `scope`, so this should be ok.
-    let scope_ref: *const Scope<'_, '_, R> = &*scope;
-    let body_future = body(unsafe { &*scope_ref });
+    let scope_data_ref: *const ScopeData<'_, 'env, R> = &*scope_data;
+    let scope: Scope<'_, 'env, R> = Scope::new(unsafe { &*scope_data_ref });
 
-    ScopeBody::new(body::Body::new(body_future, scope))
+    let body_future = body(scope);
+
+    ScopeBody::new(body::Body::new(body_future, scope_data))
 }

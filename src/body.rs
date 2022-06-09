@@ -2,7 +2,7 @@ use std::{sync::Arc, task::Poll};
 
 use futures::{future::BoxFuture, Future, FutureExt};
 
-use crate::scope::Scope;
+use crate::{scope::Scope, scope_data::ScopeData};
 
 /// The future for a scope's "body".
 ///
@@ -15,7 +15,7 @@ use crate::scope::Scope;
 pub(crate) struct Body<'scope, 'env: 'scope, R: Send + 'env> {
     body_future: Option<BoxFuture<'scope, R>>,
     result: Option<R>,
-    scope: Arc<Scope<'scope, 'env, R>>,
+    scope: Arc<ScopeData<'scope, 'env, R>>,
 }
 
 impl<'scope, 'env, R> Body<'scope, 'env, R>
@@ -25,7 +25,10 @@ where
     /// # Unsafe contract
     ///
     /// - `future` will be dropped BEFORE `scope`
-    pub(crate) fn new(future: BoxFuture<'scope, R>, scope: Arc<Scope<'scope, 'env, R>>) -> Self {
+    pub(crate) fn new(
+        future: BoxFuture<'scope, R>,
+        scope: Arc<ScopeData<'scope, 'env, R>>,
+    ) -> Self {
         Self {
             body_future: Some(future),
             result: None,

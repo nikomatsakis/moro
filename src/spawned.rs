@@ -39,13 +39,13 @@ where
 {
     pub fn or_cancel<'scope, 'env, T>(
         self,
-        scope: &'scope Scope<'scope, 'env, Result<T, E>>,
+        scope: Scope<'scope, 'env, Result<T, E>>,
     ) -> impl Future<Output = O> + 'scope
     where
         T: Send,
         O: 'scope,
         F: 'scope,
     {
-        scope.spawn(async { self.await.unwrap_or_cancel(scope).await })
+        scope.spawn(async move { self.await.unwrap_or_cancel(scope).await })
     }
 }
