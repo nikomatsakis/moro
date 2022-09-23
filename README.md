@@ -4,7 +4,7 @@ Experiments with structured concurrency in Rust
 
 ## TL;DR
 
-Similar to [rayon] or [`std::thread::scope`], moro let's you create a *scope* using a `moro::async_scope!` macro. Within this scope, you can spawn jobs that can access stack data defined outside the scope:
+Similar to [rayon] or [`std::thread::scope`], moro lets you create a *scope* using a `moro::async_scope!` macro. Within this scope, you can spawn jobs that can access stack data defined outside the scope:
 
 ```rust
 let value = 22;
