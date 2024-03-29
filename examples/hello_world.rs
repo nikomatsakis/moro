@@ -1,5 +1,3 @@
-use moro;
-
 #[tokio::main]
 pub async fn main() {
     let value = 22;
