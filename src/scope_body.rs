@@ -1,28 +1,34 @@
 use std::pin::Pin;
 
 use futures::Future;
+use pin_project::pin_project;
 
 use crate::body::Body;
 
-pub struct ScopeBody<'env, R: 'env>
+#[pin_project]
+pub struct ScopeBody<'env, R: 'env, F>
 where
     R: Send,
+    F: Future<Output = R>,
 {
-    body: Body<'env, 'env, R>,
+    #[pin]
+    body: Body<'env, 'env, R, F>,
 }
 
-impl<'env, R> ScopeBody<'env, R>
+impl<'env, R, F> ScopeBody<'env, R, F>
 where
     R: Send,
+    F: Future<Output = R>,
 {
-    pub(crate) fn new(body: Body<'env, 'env, R>) -> Self {
+    pub(crate) fn new(body: Body<'env, 'env, R, F>) -> Self {
         Self { body }
     }
 }
 
-impl<'env, R> Future for ScopeBody<'env, R>
+impl<'env, R, F> Future for ScopeBody<'env, R, F>
 where
     R: Send,
+    F: Future<Output = R>,
 {
     type Output = R;
 
@@ -30,8 +36,6 @@ where
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        Pin::new(&mut self.get_mut().body).poll(cx)
+        Pin::new(&mut self.project().body).poll(cx)
     }
 }
-
-impl<R: Send> Unpin for ScopeBody<'_, R> {}
