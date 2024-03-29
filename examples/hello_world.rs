@@ -18,4 +18,5 @@ pub async fn main() {
     });
     let result = scope.await;
     println!("{result:?}");
+    println!("{value:?}");
 }
