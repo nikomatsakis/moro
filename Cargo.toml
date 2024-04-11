@@ -13,6 +13,7 @@ description = "Experimental structured concurrency support for async Rust (simil
 futures = "0.3.21"
 async-channel = "1.6"
 async-trait = "0.1.56"
+pin-project = "1.1.5"
 
 [dev-dependencies]
 anyhow = "1"

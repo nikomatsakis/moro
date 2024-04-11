@@ -1,6 +1,7 @@
-use std::{sync::Arc, task::Poll};
+use std::{pin::Pin, sync::Arc, task::Poll};
 
-use futures::{future::BoxFuture, Future, FutureExt};
+use futures::{Future, FutureExt};
+use pin_project::{pin_project, pinned_drop};
 
 use crate::scope::Scope;
 
@@ -12,20 +13,26 @@ use crate::scope::Scope;
 /// # Unsafe contract
 ///
 /// - `body_future` and `result` will be dropped BEFORE `scope`.
-pub(crate) struct Body<'scope, 'env: 'scope, R: Send + 'env> {
-    body_future: Option<BoxFuture<'scope, R>>,
+#[pin_project(PinnedDrop)]
+pub(crate) struct Body<'scope, 'env: 'scope, R, F>
+where
+    R: Send,
+    R: 'env,
+{
+    #[pin]
+    body_future: Option<F>,
     result: Option<R>,
     scope: Arc<Scope<'scope, 'env, R>>,
 }
 
-impl<'scope, 'env, R> Body<'scope, 'env, R>
+impl<'scope, 'env, R, F> Body<'scope, 'env, R, F>
 where
     R: Send,
 {
     /// # Unsafe contract
     ///
     /// - `future` will be dropped BEFORE `scope`
-    pub(crate) fn new(future: BoxFuture<'scope, R>, scope: Arc<Scope<'scope, 'env, R>>) -> Self {
+    pub(crate) fn new(future: F, scope: Arc<Scope<'scope, 'env, R>>) -> Self {
         Self {
             body_future: Some(future),
             result: None,
@@ -33,40 +40,43 @@ where
         }
     }
 
-    fn clear(&mut self) {
-        self.body_future.take();
-        self.result.take();
-        self.scope.clear();
+    fn clear(self: Pin<&mut Self>) {
+        let mut this = self.project();
+        this.body_future.set(None);
+        this.result.take();
+        this.scope.clear();
     }
 }
 
-impl<'scope, 'env, R> Drop for Body<'scope, 'env, R>
+#[pinned_drop]
+impl<'scope, 'env, R, F> PinnedDrop for Body<'scope, 'env, R, F>
 where
     R: Send,
 {
-    fn drop(&mut self) {
+    fn drop(self: Pin<&mut Self>) {
         // Fulfill our unsafe contract and ensure we drop other fields
         // before we drop scope.
         self.clear();
     }
 }
 
-impl<'scope, 'env, R> Future for Body<'scope, 'env, R>
+impl<'scope, 'env, R, F> Future for Body<'scope, 'env, R, F>
 where
     R: Send,
+    F: Future<Output = R>,
 {
     type Output = R;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
+        let mut this = self.project();
 
         // If the body is not yet finished, poll that. Once it becomes finished,
         // we will update `this.result.
-        if let Some(body_future) = &mut this.body_future {
+        if let Some(mut body_future) = this.body_future.as_mut().as_pin_mut() {
             match body_future.poll_unpin(cx) {
                 Poll::Ready(r) => {
-                    this.result = Some(r);
-                    this.body_future = None;
+                    *this.result = Some(r);
+                    this.body_future.set(None);
                 }
                 Poll::Pending => {}
             }
@@ -86,5 +96,3 @@ where
         }
     }
 }
-
-impl<R: Send> Unpin for Body<'_, '_, R> {}
