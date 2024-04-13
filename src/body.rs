@@ -72,8 +72,8 @@ where
 
         // If the body is not yet finished, poll that. Once it becomes finished,
         // we will update `this.result.
-        if let Some(mut body_future) = this.body_future.as_mut().as_pin_mut() {
-            match body_future.poll_unpin(cx) {
+        if let Some(body_future) = this.body_future.as_mut().as_pin_mut() {
+            match body_future.poll(cx) {
                 Poll::Ready(r) => {
                     *this.result = Some(r);
                     this.body_future.set(None);
