@@ -1,18 +1,24 @@
 #![feature(async_closure)]
 #![feature(async_fn_traits)]
 #![feature(unboxed_closures)]
+#![allow(async_fn_in_trait)]
 
 use std::ops::AsyncFnOnce;
 
 #[macro_use]
 mod macros;
 
+mod async_iter;
 mod body;
 pub mod prelude;
 mod result_ext;
 mod scope;
 mod scope_body;
 mod spawned;
+mod stream;
+
+pub use async_iter::{AsyncIterator, IntoAsyncIter};
+pub use stream::Stream;
 
 /// Creates an async scope within which you can spawn jobs.
 /// This works much like the stdlib's
