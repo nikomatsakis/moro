@@ -1,7 +1,7 @@
 use crate::{AsyncIterator, IntoAsyncIter, Scope};
 
 pub trait Stream: IntoAsyncIter {
-    fn filter(self, op: impl async FnMut(&Self::Item) -> bool) -> impl Stream<Item = Self::Item>
+    fn filter(self, op: impl AsyncFnMut(&Self::Item) -> bool) -> impl Stream<Item = Self::Item>
     where
         Self: Sized,
     {
@@ -11,20 +11,20 @@ pub trait Stream: IntoAsyncIter {
         }
     }
 
-    async fn for_each(&mut self, mut op: impl async FnMut(Self::Item))
+    async fn for_each(&mut self, mut op: impl AsyncFnMut(Self::Item))
     where
         Self: Sized,
     {
         self.fold((), async |(), item| op(item).await).await
     }
 
-    async fn fold<R>(&mut self, start: R, op: impl async FnMut(R, Self::Item) -> R) -> R;
+    async fn fold<R>(&mut self, start: R, op: impl AsyncFnMut(R, Self::Item) -> R) -> R;
 }
 
 struct Filter<S, O>
 where
     S: Stream,
-    O: async FnMut(&S::Item) -> bool,
+    O: AsyncFnMut(&S::Item) -> bool,
 {
     stream: S,
     filter_op: O,
@@ -33,9 +33,9 @@ where
 impl<S, O> Stream for Filter<S, O>
 where
     S: Stream,
-    O: async FnMut(&S::Item) -> bool,
+    O: AsyncFnMut(&S::Item) -> bool,
 {
-    async fn fold<R>(&mut self, start: R, mut op: impl async FnMut(R, Self::Item) -> R) -> R {
+    async fn fold<R>(&mut self, start: R, mut op: impl AsyncFnMut(R, Self::Item) -> R) -> R {
         self.stream
             .fold(start, async |acc, item| {
                 if (self.filter_op)(&item).await {
@@ -51,7 +51,7 @@ where
 impl<S, O> IntoAsyncIter for Filter<S, O>
 where
     S: Stream,
-    O: async FnMut(&S::Item) -> bool,
+    O: AsyncFnMut(&S::Item) -> bool,
 {
     type Item = S::Item;
 

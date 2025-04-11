@@ -1,5 +1,3 @@
-#![feature(async_closure)]
-
 #[tokio::main]
 pub async fn main() {
     let value = 22;

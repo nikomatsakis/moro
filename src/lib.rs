@@ -1,4 +1,3 @@
-#![feature(async_closure)]
 #![feature(async_fn_traits)]
 #![feature(unboxed_closures)]
 #![allow(async_fn_in_trait)]
@@ -174,7 +173,7 @@ pub fn scope<'env, R, B>(
 ) -> ScopeBody<'env, R, <B as AsyncFnOnce<(&'env scope::Scope<'env, 'env, R>,)>>::CallOnceFuture>
 where
     R: Send + 'env,
-    for<'scope> B: async FnOnce(&'scope Scope<'scope, 'env, R>) -> R,
+    for<'scope> B: AsyncFnOnce(&'scope Scope<'scope, 'env, R>) -> R,
 {
     let scope = Scope::new();
 

@@ -17,7 +17,7 @@ pub trait AsyncIterator {
 
     fn filter(
         self,
-        op: impl async FnMut(&Self::Item) -> bool,
+        op: impl AsyncFnMut(&Self::Item) -> bool,
     ) -> impl AsyncIterator<Item = Self::Item>
     where
         Self: Sized,
@@ -53,7 +53,7 @@ impl<T: AsyncIterator> IntoAsyncIter for T {
 struct Filter<I, O>
 where
     I: AsyncIterator,
-    O: async FnMut(&I::Item) -> bool,
+    O: AsyncFnMut(&I::Item) -> bool,
 {
     iter: I,
     filter_op: O,
@@ -62,7 +62,7 @@ where
 impl<I, O> AsyncIterator for Filter<I, O>
 where
     I: AsyncIterator,
-    O: async FnMut(&I::Item) -> bool,
+    O: AsyncFnMut(&I::Item) -> bool,
 {
     type Item = I::Item;
 
